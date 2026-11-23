@@ -6,6 +6,13 @@ require dirname(__DIR__, 2) . '/backend/bootstrap.php';
 header('Cache-Control: no-store');
 $routes = [
     '/' => [Telcom\Controladores\InicioController::class, 'inicio'],
+    '/clientes-equipos' => [Telcom\Controladores\InicioController::class, 'clientes'],
+    '/reparaciones' => [Telcom\Controladores\InicioController::class, 'reparaciones'],
+    '/inventario' => [Telcom\Controladores\InicioController::class, 'inventario'],
+    '/ventas' => [Telcom\Controladores\InicioController::class, 'ventas'],
+    '/reportes' => [Telcom\Controladores\InicioController::class, 'reportes'],
+    '/usuarios-sucursales' => [Telcom\Controladores\InicioController::class, 'usuarios'],
+    '/acceso' => [Telcom\Controladores\InicioController::class, 'acceso'],
     '/health' => [Telcom\Controladores\InicioController::class, 'estado'],
 ];
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);

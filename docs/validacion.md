@@ -12,7 +12,7 @@ Pruebas realizadas localmente con Docker Desktop, contenedores Linux, PHP 8.4 y 
 
 ## Respuestas HTTP y archivos privados
 
-`docker compose exec -T web php tests/http.php`: diez casos correctos. Inicio y health 200, ruta desconocida 404, POST a health 405, acceso a `.env` 403, configuración y SQL fuera del directorio público 404, Bootstrap local 200.
+`docker compose exec -T web php tests/http.php`: 31 casos HTTP correctos y una comprobación de escape HTML. Incluyen las ocho vistas, el endpoint de estado, recursos locales, validación de filtros, métodos no permitidos y bloqueo de acceso a archivos privados.
 
 ## Indisponibilidad y recuperación
 
@@ -30,7 +30,7 @@ try {
 }
 ```
 
-El DNS interno de Docker puede demorar cuando el servicio está detenido. La prueba negativa permite 30 segundos; el botón de la interfaz limita la espera a seis segundos y muestra un mensaje de conexión si se alcanza ese límite.
+El DNS interno de Docker puede demorar cuando el servicio está detenido. La prueba negativa permite 30 segundos. Los formularios limitan sus solicitudes a 15 segundos y conservan los datos capturados cuando ocurre un error.
 
 ## Respaldo y restauración
 
@@ -45,7 +45,7 @@ Esta prueba cubre la estructura y los catálogos iniciales; no acredita recupera
 
 ## Revisión del código
 
-- Los 10 archivos PHP pasaron `php -l`.
+- Los 20 archivos PHP pasaron `php -l`.
 - PHP_CodeSniffer 3.13.6 pasó sin errores ni advertencias con el estándar del proyecto.
 - ESLint 10.15.0 pasó para el JavaScript propio con Node 22.
 - Composer y npm tienen archivos lock incluidos. Las herramientas de revisión son dependencias de desarrollo, no requisitos para arrancar la aplicación.
@@ -53,7 +53,7 @@ Esta prueba cubre la estructura y los catálogos iniciales; no acredita recupera
 
 ## Interfaz
 
-Se revisó la página en navegador en vista estrecha y de escritorio. El botón «Comprobar de nuevo» actualizó el estado correctamente. La página identifica los seis módulos como no habilitados e informa que su función actual es comprobar la conexión. La captura `pantalla-inicial.jpg` registra esa pantalla.
+Se revisaron las vistas de consulta en navegador. La interfaz utiliza la identidad visual de Telcom, iconos SVG, Bootstrap local y un estilo compartido. Los indicadores y listados proceden de MySQL y presentan estados vacíos sin registros de demostración. La captura `pantalla-inicial.jpg` registra el panel. La interfaz presenta formularios de captura y acceso, con envío JSON y manejo de errores; no simula persistencia ni autenticación.
 
 ## Límites de la validación
 
@@ -61,10 +61,25 @@ No se ejecutó GitHub Actions en un remoto, ni una auditoría de producción, pr
 
 ## Reorganización frontend/backend
 
-Se reorganizó el código activo en `frontend/public`, `frontend/vistas`, `backend/config`, `backend/controladores` y `backend/modelos`. Se concentró la comprobación de disponibilidad en el controlador y el modelo, sin una capa de servicios para esta operación sencilla. `backend/bootstrap.php` carga las clases utilizadas; las dos rutas están declaradas en `frontend/public/index.php`.
+Se reorganizó el código activo en `frontend/public`, `frontend/vistas`, `backend/config`, `backend/controladores` y `backend/modelos`. Se concentró la comprobación de disponibilidad en el controlador y el modelo, sin una capa de servicios para esta operación sencilla. `backend/bootstrap.php` carga las clases utilizadas; las rutas están declaradas en `frontend/public/index.php`.
 
 Se movieron Composer, npm, ESLint y PHP_CodeSniffer a `tests/herramientas`. El archivo local de configuración previa se conservó dentro de `backups`. Apache expone únicamente `frontend/public` y la comprobación del contenedor reside en `docker/php/healthcheck.php`.
 
 Verificación posterior: reconstrucción Docker correcta; diez archivos PHP sin errores de sintaxis; 11 comprobaciones de integridad SQL y diez casos HTTP correctos; ESLint y PHP_CodeSniffer correctos desde sus nuevas ubicaciones; respuesta 503 ante una caída de MySQL y recuperación de los servicios. Las rutas directas a backend, vistas, herramientas y SQL devuelven 404. Git sigue excluyendo `.env`, la copia de configuración y las dependencias.
 
 La base y sus credenciales permanecieron disponibles. La reorganización conservó el alcance funcional. El flujo de GitHub Actions utiliza las rutas actuales; no hay una ejecución remota registrada.
+
+## Interfaz de consulta con la identidad visual de Telcom
+
+Las ocho vistas consultan el esquema existente mediante PDO. Los filtros de estado utilizan el catálogo de ocho estados de reparación y los de sucursal utilizan establecimientos registrados. Usuarios muestra correo, nombre, apellido y rol; no muestra hashes ni presupone nombres de usuario. El resumen de actividad utiliza ventas e historial de reparaciones.
+
+Las pruebas HTTP comprueban rutas válidas, filtros inválidos, fechas inexistentes o invertidas, parámetros con formato incorrecto, rechazo de solicitudes POST y escape de texto en búsquedas. La revisión de consultas se realizó sobre la base existente, sin insertar datos de prueba. La base comercial estaba vacía, por lo que esta comprobación valida ejecución y estados vacíos; no acredita todos los escenarios con registros ni el aislamiento por permisos.
+
+Los formularios de registro y acceso están disponibles; sus endpoints de escritura y autenticación aún no están implementados. No se modificó el esquema, sus campos ni los catálogos. El contraste de hashes de `database/schema.sql` y `database/seed.sql` conserva los valores anteriores a la integración visual. Las consultas de la aplicación utilizan exclusivamente SELECT; no se ejecutaron pruebas SQL que inserten registros durante esta integración.
+
+
+## Preparación de formularios
+
+La revisión del frontend incluye presentación sin avisos de desarrollo, diálogos de alta y edición, campos alineados al esquema, opciones reales de catálogos, relaciones cliente/equipo, carrito, impresión, navegación y manejo de errores. Los contratos y límites de integración se describen en integracion-frontend.md. Las pruebas de consultas no acreditan persistencia ni autenticación; los controladores de escritura no forman parte de esta revisión.
+
+Las pruebas de `tests/frontend.mjs` verifican importes en centavos, límites de precisión y conversión de formularios a JSON, incluyendo identificadores, campos opcionales e IMEI con ceros iniciales. La revisión HTML comprobó 12 formularios de integración, identificadores únicos y correspondencia entre etiquetas y campos.

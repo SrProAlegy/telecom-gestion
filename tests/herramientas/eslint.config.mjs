@@ -3,7 +3,7 @@ export default [{
     languageOptions: {
         ecmaVersion: 2022,
         sourceType: 'script',
-        globals: { document: 'readonly', fetch: 'readonly', AbortSignal: 'readonly' }
+        globals: { document: 'readonly', fetch: 'readonly', AbortSignal: 'readonly', window: 'readonly', FormData: 'readonly', URL: 'readonly' }
     },
     rules: {
         'no-undef': 'error',

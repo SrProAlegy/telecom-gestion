@@ -4,14 +4,17 @@ La especificación de referencia es «Telcom Gestion - Fase0 - Fase1.pdf»: diag
 
 ## Funciones disponibles
 
-- Página de estado con comprobación de conexión y esquema.
+- Panel con indicadores obtenidos de MySQL, consulta de reparaciones recientes y actividad registrada.
+- Vistas de consulta de clientes/equipos, reparaciones, inventario, ventas, usuarios y sucursales.
+- Filtros por sucursal, estado, texto y fechas según cada pantalla.
+- Resúmenes de ventas y reparaciones por sucursal y estado, y consulta de stock bajo actual.
 - Endpoint `/health`: HTTP 200 con conexión disponible y HTTP 503 cuando falla la comprobación.
 - Conexión PDO con consultas preparadas, codificación utf8mb4 y errores públicos sin detalles internos.
 - Inicialización del esquema y del catálogo de estados de reparación.
 - Consulta visual de la base mediante phpMyAdmin.
 - Pruebas de integridad SQL, respuestas HTTP, disponibilidad y restauración de respaldo.
 
-La aplicación no incluye inicio de sesión, permisos por rol, formularios de captura, operaciones de reparación, movimientos de inventario, registro de ventas, reportes ni exportación. La existencia de sus tablas no equivale a la disponibilidad de esos módulos.
+La interfaz contiene formularios de acceso, alta y edición, carrito e impresión de reportes. El backend no procesa autenticación, permisos ni operaciones de escritura. Las consultas y resúmenes funcionan sobre los registros existentes; las rutas de envío se documentan en integracion-frontend.md. La existencia de sus tablas no equivale a la disponibilidad de esos módulos.
 
 ## Entidades y relaciones
 
@@ -38,25 +41,25 @@ La relación Cliente → Equipo → Reparación admite varias reparaciones del m
 | Requisito | Soporte existente | Funciones no disponibles |
 |---|---|---|
 | RF01–02 | Tabla de usuarios, hash y rol | Inicio/cierre de sesión, sesiones y permisos |
-| RF03 | Sucursales y relaciones | Administración de sucursales |
-| RF04–05 | Clientes y equipos | Formularios, validación y consultas |
+| RF03 | Consulta de sucursales y relaciones | Alta y edición de sucursales |
+| RF04–05 | Consulta y búsqueda de clientes y equipos | Formularios y validación de captura |
 | RF06–09 | Reparaciones, técnico opcional y estados | Recepción, asignación, diagnóstico y actualización |
-| RF10 | Índice por sucursal, estado y fecha | Consulta y filtros de reparaciones |
-| RF11–12 | Categorías, productos e inventario por sede | Administración del catálogo y movimientos |
+| RF10 | Consulta de reparaciones con filtros por sucursal, estado y búsqueda | Permisos de consulta por usuario |
+| RF11–12 | Consulta de productos, categorías y existencias por sede | Administración del catálogo y movimientos |
 | RF13–14 | Venta, detalle e importes | Registro transaccional de ventas y descuento de existencias |
 | RF15 | Referencias a sucursal y consistencia del operador | Restricción de acceso por sucursal |
-| RF16 | Tablas e índices consultables | Reportes |
+| RF16 | Resúmenes consultables de ventas, reparaciones e inventario | Permisos y exportación |
 | RF17 | Fechas y tabla de historial | Registro de eventos y consulta del seguimiento |
 
-Los requisitos funcionales disponen de soporte en el esquema, pero no de procesos de aplicación completos.
+Las consultas tienen soporte funcional y los formularios están preparados en el frontend. Los controladores de escritura y acceso no están implementados.
 
 | Requisito no funcional | Cobertura actual |
 |---|---|
-| RNF01 | Página de estado adaptable con Bootstrap |
+| RNF01 | Vistas adaptables con Bootstrap y menú desplegable en tablet |
 | RNF02–03 | Sin autenticación ni autorización de aplicación |
 | RNF04 | Base MySQL centralizada en el entorno local |
-| RNF05 | Página de estado accesible mediante navegador |
-| RNF06 | Mensajes genéricos ante fallos de conexión; sin formularios de captura |
+| RNF05 | Vistas de consulta accesibles mediante navegador |
+| RNF06 | Validación de filtros y mensajes genéricos ante fallos de conexión; sin captura |
 | RNF07 | Comandos de respaldo y restauración documentados; prueba de recuperación en base temporal |
 | RNF08 | Separación de vistas, controladores, modelos y conexión PDO |
 | RNF09 | Repositorio Git, exclusiones y flujo de validación configurados; sin ejecución remota registrada |
@@ -64,3 +67,5 @@ Los requisitos funcionales disponen de soporte en el esquema, pero no de proceso
 ## Límites del alcance
 
 No se incluye exportación a Excel ni módulos específicos de impresiones o venta de dulces. No hay un servicio transaccional de ventas, registro de movimientos de inventario, control de concurrencia comercial ni historial automático de reparaciones.
+
+La identidad visual sigue la propuesta de Telcom: azul marino #17365D, azul #246B9E, fondos #F7F9FC y disposición de menú lateral, barra superior, indicadores y tablas. Los campos y valores proceden del esquema existente. La opción “Todas las sucursales” es un filtro de consulta; no una asignación de usuario.

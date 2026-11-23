@@ -2,7 +2,7 @@
 
 Aplicación web para la gestión de sucursales, clientes, equipos, reparaciones, inventario y ventas de Telcom. HTML5, CSS3, JavaScript y Bootstrap; PHP 8.4 por capas con PDO; MySQL 8.4; Apache; Git. Docker Compose sustituye exclusivamente a XAMPP.
 
-Funciona la página inicial, la comprobación HTTP/PDO/esquema y la inicialización de la base. **El alcance funcional actual se limita a la comprobación de servicios y base de datos.** La aplicación no incluye autenticación, formularios de captura, operaciones de reparación, movimientos de inventario, registro de ventas ni reportes. Las cuentas de MySQL son independientes de los usuarios de la aplicación.
+La aplicación presenta un panel, vistas de consulta y formularios de clientes, equipos, reparaciones, inventario, ventas, usuarios y sucursales. Las consultas leen registros existentes de MySQL. Los formularios incluyen validación e interacciones de navegador y preparan solicitudes JSON; el procesamiento de guardado, autenticación y permisos corresponde a la integración del backend. Las respuestas de éxito no se simulan. Las cuentas de MySQL son independientes de los usuarios de la aplicación.
 
 ## Requisitos
 
@@ -23,7 +23,7 @@ docker compose config --quiet
 docker compose up -d --build --wait --wait-timeout 240
 ```
 
-Abre [Telcom Gestión](http://localhost:8080). Debe aparecer «Conexión y esquema disponibles». El endpoint [de comprobación](http://localhost:8080/health) devuelve HTTP 200 y `{"status":"ok","database":"ready"}`; devuelve 503 si falla la conexión o la inicialización. El primer arranque descarga imágenes y puede tardar varios minutos.
+Abre [Telcom Gestión](http://localhost:8080). El panel muestra el estado de la conexión, indicadores reales y estados vacíos cuando no hay registros. El endpoint [de comprobación](http://localhost:8080/health) devuelve HTTP 200 y `{"status":"ok","database":"ready"}`; devuelve 503 si falla la conexión o la inicialización. El primer arranque descarga imágenes y puede tardar varios minutos.
 
 Si el puerto está ocupado, cambia `APP_PORT` en `.env` y ejecuta de nuevo `docker compose up -d`. MySQL publica `127.0.0.1:3306` para gestores locales; PHP lo alcanza mediante `db:3306`. Apache se publica en `127.0.0.1:8080` y phpMyAdmin en `127.0.0.1:8081`, para desarrollo local.
 
@@ -38,7 +38,7 @@ frontend/
     assets/css/           Estilos propios
     assets/js/            JavaScript propio
     assets/bootstrap/     Bootstrap y su licencia
-  vistas/inicio.php       HTML y presentación de datos
+  vistas/                 Plantilla, vistas por módulo y funciones de presentación
 backend/
   bootstrap.php           Carga de las clases utilizadas
   config/database.php     Configuración y conexión PDO
@@ -124,3 +124,26 @@ El usuario inicial de Compose es `admin_telecom`. Cambiar `MYSQL_USER` o las con
 
 Referencia de configuración del gestor: [imagen oficial de phpMyAdmin](https://hub.docker.com/_/phpmyadmin).
 La estructura separa la presentación en `frontend` y el acceso a datos/controladores en `backend`. La copia local de configuración previa está conservada en `backups/.env.before-connection-fix`.
+
+
+## Consultas disponibles
+
+| Ruta | Información |
+|---|---|
+| `/` | Indicadores del día, reparaciones recientes y actividad registrada |
+| `/clientes-equipos` | Catálogo compartido de clientes y equipos, con búsqueda |
+| `/reparaciones` | Registros por sucursal y estado, con diagnóstico y observaciones consultables |
+| `/inventario` | Catálogo y existencias por sucursal; “—” indica ausencia de registro de inventario |
+| `/ventas` | Catálogo e importes registrados en el periodo seleccionado |
+| `/reportes` | Resúmenes de ventas y reparaciones por periodo; stock bajo actual |
+| `/usuarios-sucursales` | Usuarios y sucursales de aplicación, sin exponer hashes |
+| `/acceso` | Formulario de acceso por correo y contraseña |
+
+Los filtros de sucursal utilizan establecimientos existentes. Los estados proceden de `estados_reparacion`. Las fechas de ventas y reportes se interpretan en America/Mexico_City y se convierten a UTC para consultar MySQL. La fecha final es inclusiva en la interfaz. El panel calcula las ventas del día local. Los listados muestran hasta 100 registros; los indicadores se calculan sobre todo el ámbito consultado. La actividad reciente procede de ventas e historial de reparaciones; no representa una auditoría general de inventario.
+
+El stock bajo cuenta productos activos con alguna existencia inferior a `productos.stock_minimo` dentro del ámbito seleccionado. El backend actual no aplica autenticación a las rutas de consulta. No hay usuarios conectados, sucursales ficticias ni datos de demostración. Los registros que se muestren corresponden a la base existente. El diseño utiliza un estilo compartido, Bootstrap local, iconos SVG y JavaScript externo compatible con la política de seguridad del servidor.
+
+
+## Formularios e integración
+
+Los formularios y el carrito están preparados para el contrato JSON descrito en [docs/integracion-frontend.md](docs/integracion-frontend.md). Las rutas `/api/*` de escritura no están implementadas: una solicitud sin confirmación del servidor muestra un error y no anuncia un guardado. Las lecturas existentes continúan funcionando. La interfaz contiene formularios de alta y edición, selección de equipos por cliente, captura de existencias, selección de productos y cantidades, visualización de contraseña e impresión de reportes.

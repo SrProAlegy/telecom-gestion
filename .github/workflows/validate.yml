@@ -30,6 +30,7 @@ jobs:
           node-version: '22'
       - run: npm ci --prefix tests/herramientas
       - run: npm run lint --prefix tests/herramientas
+      - run: npm test --prefix tests/herramientas
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
