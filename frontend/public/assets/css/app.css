@@ -1,0 +1,8 @@
+:root { --bs-primary: #225f8b; --bs-body-color: #183248; }
+body { background: #f4f7fa; }
+.brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #225f8b; color: white; font-size: 1.5rem; font-weight: 700; }
+.eyebrow { color: #225f8b; letter-spacing: .12em; font-size: .75rem; font-weight: 700; }
+.card { border-color: #dfe7ee; border-radius: 14px; }
+.status-card { border-top: 4px solid #225f8b; }
+.pending { color: #625027; background: #fff3d4; }
+.btn-primary { --bs-btn-bg: #225f8b; --bs-btn-border-color: #225f8b; --bs-btn-hover-bg: #194b70; --bs-btn-hover-border-color: #194b70; }

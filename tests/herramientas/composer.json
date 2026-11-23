@@ -1,0 +1,16 @@
+{
+  "name": "telcom/gestion",
+  "description": "Base ejecutable de Telcom Gestión",
+  "type": "project",
+  "require": {
+    "php": "^8.4",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*"
+  },
+  "require-dev": {
+    "squizlabs/php_codesniffer": "^3.13"
+  },
+  "scripts": {
+    "lint": "cd ../.. && php tests/herramientas/vendor/bin/phpcs --standard=tests/herramientas/phpcs.xml"
+  }
+}

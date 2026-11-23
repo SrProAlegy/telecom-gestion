@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<ruleset name="Telcom">
+    <description>Estándar PHP por capas.</description>
+    <rule ref="PSR12"/>
+    <file>../../backend</file>
+    <file>../../frontend/public/index.php</file>
+    <file>../../docker/php/healthcheck.php</file>
+    <file>..</file>
+    <exclude-pattern>*/herramientas/*</exclude-pattern>
+</ruleset>

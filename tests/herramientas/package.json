@@ -1,0 +1,10 @@
+{
+  "name": "telcom-gestion-checks",
+  "private": true,
+  "scripts": {
+    "lint": "cd ../.. && node tests/herramientas/node_modules/eslint/bin/eslint.js --config tests/herramientas/eslint.config.mjs frontend/public/assets/js/app.js"
+  },
+  "devDependencies": {
+    "eslint": "10.15.0"
+  }
+}
