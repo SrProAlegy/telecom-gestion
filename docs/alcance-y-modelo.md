@@ -1,71 +1,60 @@
 # Alcance y modelo de datos
 
-La especificación de referencia es «Telcom Gestion - Fase0 - Fase1.pdf»: diagrama entidad–relación en la página 3 y requisitos en las páginas 8–9. El entorno local utiliza Docker Compose con Apache/PHP y MySQL.
+El esquema conserva las 11 entidades del ER: sucursales, usuarios, clientes, equipos, tecnicos, reparaciones, categorias, productos, inventario, ventas y detalle_venta. Las tablas complementarias son estados_reparacion, historial_reparaciones y schema_version. La implementación del backend no modifica el esquema, sus campos ni los estados iniciales.
 
-## Funciones disponibles
+## Funciones
 
-- Panel con indicadores obtenidos de MySQL, consulta de reparaciones recientes y actividad registrada.
-- Vistas de consulta de clientes/equipos, reparaciones, inventario, ventas, usuarios y sucursales.
-- Filtros por sucursal, estado, texto y fechas según cada pantalla.
-- Resúmenes de ventas y reparaciones por sucursal y estado, y consulta de stock bajo actual.
-- Endpoint `/health`: HTTP 200 con conexión disponible y HTTP 503 cuando falla la comprobación.
-- Conexión PDO con consultas preparadas, codificación utf8mb4 y errores públicos sin detalles internos.
-- Inicialización del esquema y del catálogo de estados de reparación.
-- Consulta visual de la base mediante phpMyAdmin.
-- Pruebas de integridad SQL, respuestas HTTP, disponibilidad y restauración de respaldo.
-
-La interfaz contiene formularios de acceso, alta y edición, carrito e impresión de reportes. El backend no procesa autenticación, permisos ni operaciones de escritura. Las consultas y resúmenes funcionan sobre los registros existentes; las rutas de envío se documentan en integracion-frontend.md. La existencia de sus tablas no equivale a la disponibilidad de esos módulos.
-
-## Entidades y relaciones
-
-El esquema conserva las 11 entidades del ER: sucursales, usuarios, clientes, equipos, tecnicos, reparaciones, categorias, productos, inventario, ventas y detalle_venta. Incluye tres tablas complementarias: estados_reparacion, historial_reparaciones y schema_version.
-
-La relación Cliente → Equipo → Reparación admite varias reparaciones del mismo dispositivo. El cliente de una venta es opcional; una reparación admite un técnico sin asignar. Técnicos y usuarios son entidades independientes.
-
-## Campos y restricciones
-
-- `usuarios.password_hash` reserva el almacenamiento del hash de contraseña. No hay cuentas de aplicación precargadas ni un mecanismo de autenticación activo.
-- `usuarios.rol` admite administrador, recepcion, tecnico y ventas. La restricción SQL limita los valores; no aplica permisos de acceso.
-- `reparaciones` conserva observaciones, fecha de recepción, fecha de entrega y fecha de actualización. La sesión PDO utiliza UTC; la zona horaria configurada en PHP es America/Mexico_City.
-- `estados_reparacion` contiene recibido, enviado a técnico, diagnóstico, en reparación, listo para entrega, entregado, cancelado y no reparable. El catálogo restringe los valores de estado, sin controlar sus transiciones.
-- `historial_reparaciones` almacena estado, diagnóstico, observaciones, técnico, usuario, sucursal y fecha de cada evento. No hay triggers ni operaciones de aplicación que creen eventos al modificar una reparación.
-- `schema_version` identifica la versión del esquema inicializado.
-- Sucursales y técnicos tienen un indicador de activo. Las restricciones impiden importes o existencias negativos, cantidades de venta menores que uno y duplicados de inventario por producto/sucursal.
-- El IMEI es opcional y admite 15 dígitos. No tiene una restricción de unicidad.
-- Las claves foráneas compuestas usuario–sucursal en ventas, reparaciones e historial exigen que la sucursal del registro coincida con la del usuario. Esta regla también impide cambiar la sucursal de un usuario con operaciones asociadas. La sucursal de recepción permanece en la reparación; los eventos del historial conservan la sucursal de su operador.
-- `detalle_venta.subtotal` se calcula como cantidad × precio unitario. El esquema no verifica que `ventas.total` coincida con la suma de sus detalles y no descuenta inventario al insertar una venta.
-- Las operaciones no tienen borrado en cascada; las referencias históricas están protegidas por claves foráneas.
-
-## Correspondencia con los requisitos
-
-| Requisito | Soporte existente | Funciones no disponibles |
-|---|---|---|
-| RF01–02 | Tabla de usuarios, hash y rol | Inicio/cierre de sesión, sesiones y permisos |
-| RF03 | Consulta de sucursales y relaciones | Alta y edición de sucursales |
-| RF04–05 | Consulta y búsqueda de clientes y equipos | Formularios y validación de captura |
-| RF06–09 | Reparaciones, técnico opcional y estados | Recepción, asignación, diagnóstico y actualización |
-| RF10 | Consulta de reparaciones con filtros por sucursal, estado y búsqueda | Permisos de consulta por usuario |
-| RF11–12 | Consulta de productos, categorías y existencias por sede | Administración del catálogo y movimientos |
-| RF13–14 | Venta, detalle e importes | Registro transaccional de ventas y descuento de existencias |
-| RF15 | Referencias a sucursal y consistencia del operador | Restricción de acceso por sucursal |
-| RF16 | Resúmenes consultables de ventas, reparaciones e inventario | Permisos y exportación |
-| RF17 | Fechas y tabla de historial | Registro de eventos y consulta del seguimiento |
-
-Las consultas tienen soporte funcional y los formularios están preparados en el frontend. Los controladores de escritura y acceso no están implementados.
-
-| Requisito no funcional | Cobertura actual |
+| Requisito | Implementación |
 |---|---|
-| RNF01 | Vistas adaptables con Bootstrap y menú desplegable en tablet |
-| RNF02–03 | Sin autenticación ni autorización de aplicación |
-| RNF04 | Base MySQL centralizada en el entorno local |
-| RNF05 | Vistas de consulta accesibles mediante navegador |
-| RNF06 | Validación de filtros y mensajes genéricos ante fallos de conexión; sin captura |
-| RNF07 | Comandos de respaldo y restauración documentados; prueba de recuperación en base temporal |
-| RNF08 | Separación de vistas, controladores, modelos y conexión PDO |
-| RNF09 | Repositorio Git, exclusiones y flujo de validación configurados; sin ejecución remota registrada |
+| RF01–02 | Acceso y salida, hash de contraseña, sesión, cuentas activas y permisos por rol |
+| RF03 | Alta, edición y desactivación de sucursales |
+| RF04–05 | Alta, edición y consulta de clientes y equipos; IMEI opcional de 15 dígitos |
+| RF06–09 | Recepción, asignación técnica, diagnóstico, seguimiento y entrega |
+| RF10 | Consultas por sucursal, estado, búsqueda y páginas |
+| RF11–12 | Categorías, productos y ajuste de existencias independientes por sucursal |
+| RF13–14 | Venta y detalles con precios del servidor, transacción y descuento de existencias |
+| RF15 | Autorización de sucursal en lecturas y escrituras |
+| RF16 | Reportes de ventas/reparaciones, stock bajo actual, impresión y CSV |
+| RF17 | Registro transaccional y consulta de historial de reparaciones |
 
-## Límites del alcance
+La correspondencia describe funciones implementadas; no sustituye una aceptación funcional con el negocio. La matriz de permisos está en el README.
 
-No se incluye exportación a Excel ni módulos específicos de impresiones o venta de dulces. No hay un servicio transaccional de ventas, registro de movimientos de inventario, control de concurrencia comercial ni historial automático de reparaciones.
+## Relaciones y reglas
 
-La identidad visual sigue la propuesta de Telcom: azul marino #17365D, azul #246B9E, fondos #F7F9FC y disposición de menú lateral, barra superior, indicadores y tablas. Los campos y valores proceden del esquema existente. La opción “Todas las sucursales” es un filtro de consulta; no una asignación de usuario.
+- Cliente → Equipo → Reparación admite varias reparaciones del mismo dispositivo. Un equipo con reparaciones conserva el cliente para no alterar su historial.
+- Clientes, equipos, técnicos, categorías y productos son catálogos compartidos. El inventario y las operaciones tienen sucursal.
+- Técnicos y cuentas con rol técnico son entidades independientes. El rol técnico puede trabajar con reparaciones de todas las sucursales; no se infiere una relación usuario–técnico que el esquema no tiene.
+- Las claves usuario–sucursal exigen que ventas, recepción e historial se registren con la sucursal del operador. Un administrador puede consultar todas las sucursales y registrar seguimiento de otras sedes; el historial conserva la sede del operador.
+- Los usuarios con ventas, reparaciones o historial conservan su sucursal. Las claves foráneas protegen esas referencias.
+- El administrador no puede desactivar su propia cuenta ni quitarse el rol. Debe conservarse al menos un administrador activo en una sucursal activa.
+- Desactivar una cuenta o sucursal impide el acceso. Cambiar la contraseña invalida sus sesiones anteriores.
+- No hay borrado físico desde la aplicación. Usuarios, sucursales, técnicos y productos pueden desactivarse; los demás registros conservan sus relaciones.
+
+## Reparaciones
+
+| Estado actual | Cambios admitidos |
+|---|---|
+| recibido | enviado_tecnico, diagnostico, cancelado |
+| enviado_tecnico | diagnostico, cancelado |
+| diagnostico | en_reparacion, no_reparable, cancelado |
+| en_reparacion | diagnostico, listo_entrega, no_reparable, cancelado |
+| listo_entrega | entregado, en_reparacion, cancelado |
+| entregado, cancelado, no_reparable | Estados cerrados |
+
+Mientras una reparación esté abierta, admite actualización de diagnóstico y observaciones manteniendo el estado. El avance técnico exige técnico asignado. Reparación, disponibilidad para entrega, entrega y cierre no reparable exigen diagnóstico. Entrega y cancelación corresponden a recepción o administración. La entrega registra la fecha UTC del servidor. Cada recepción o seguimiento crea un evento de historial dentro de la misma transacción. La revisión enviada por el formulario debe coincidir con el último evento para evitar sobrescrituras.
+
+## Ventas e inventario
+
+Una venta admite cliente opcional, método efectivo/tarjeta/transferencia y entre una y cien partidas, sin productos repetidos. Los productos deben estar activos y tener existencias suficientes en la sucursal del operador. El total se calcula en centavos enteros usando los precios bloqueados del catálogo y debe caber en DECIMAL(12,2). `detalle_venta.subtotal` mantiene su cálculo generado en MySQL. Venta, detalles y decremento de inventario se confirman juntos; ante conflicto se revierten todos.
+
+El ajuste de existencias establece la cantidad absoluta de producto y sucursal, con bloqueo y comparación de la cantidad consultada. No representa entradas/salidas contables: el esquema no incluye un libro de movimientos ni auditoría de ajustes. No se añade uno de forma implícita.
+
+## Alcance operativo
+
+El entorno es local con Apache/PHP, MySQL y phpMyAdmin. Incluye validación del servidor, mensajes públicos genéricos, protección CSRF, cookies HttpOnly/SameSite y bloqueo ante intentos de acceso repetidos. Las sesiones se almacenan en el contenedor web. No incluye recuperación de contraseña por correo, pagos en línea, contabilidad, facturación fiscal, XLSX nativo ni módulos específicos de impresiones/dulces. Los reportes CSV pueden abrirse en un gestor de hojas de cálculo.
+
+Las consultas utilizan UTC y presentan fechas en America/Mexico_City. Los resúmenes financieros corresponden al periodo seleccionado; el inventario es actual. Los catálogos iniciales no crean cuentas ni operaciones. La configuración de instalación pública, TLS remoto y auditoría de producción quedan fuera del entorno de desarrollo.
+
+## Atención técnica entre sucursales
+
+El área técnica atiende reparaciones recibidas en cualquier sucursal sin cambiar su origen. La recepción y entrega pertenecen a la sede receptora; cada evento registra también la sede de su operador. Este comportamiento utiliza las relaciones ya existentes de reparaciones e historial, sin tablas ni campos adicionales. Las consultas y exportaciones del técnico comparten ese ámbito para reparaciones; sus permisos no incluyen ventas, existencias ni reportes financieros.

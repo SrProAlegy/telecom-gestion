@@ -56,3 +56,13 @@ function icono(string $nombre): string
         . ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         . ($paths[$nombre] ?? $paths['inicio']) . '</svg>';
 }
+
+function puede(string $recurso, bool $edicion = false): bool
+{
+    return \Telcom\Soporte\Sesion::permite($recurso, $GLOBALS['usuarioSesion'] ?? null, $edicion);
+}
+
+function verPagina(string $pagina): bool
+{
+    return \Telcom\Soporte\Sesion::pagina($pagina, $GLOBALS['usuarioSesion'] ?? null);
+}

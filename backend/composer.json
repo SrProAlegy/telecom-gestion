@@ -1,0 +1,19 @@
+{
+  "name": "telcom/gestion-backend",
+  "description": "Dependencias de ejecución de Telcom Gestión",
+  "type": "project",
+  "require": {
+    "php": "^8.4",
+    "ext-pdo_mysql": "*",
+    "ext-zip": "*",
+    "openspout/openspout": "^4.32"
+  },
+  "config": {
+    "platform": {
+      "php": "8.4.0"
+    },
+    "allow-plugins": false,
+    "sort-packages": true
+  },
+  "license": "proprietary"
+}

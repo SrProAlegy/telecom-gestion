@@ -16,6 +16,8 @@ jobs:
         run: docker compose exec -T web sh -c 'find backend frontend docker/php tests -path "*/herramientas/*" -prune -o -name "*.php" -exec php -l {} \; | tee /tmp/lint; ! grep -q "Errors parsing" /tmp/lint'
       - run: docker compose exec -T web php tests/integration.php
       - run: docker compose exec -T web php tests/http.php
+      - name: Backend y concurrencia en base aislada
+        run: docker compose -f tests/compose.yaml up --build --abort-on-container-exit --exit-code-from pruebas
       - name: Recuperación ante caída de MySQL
         run: |
           trap 'docker compose up -d --wait --wait-timeout 120' EXIT
@@ -39,4 +41,7 @@ jobs:
       - run: composer --working-dir=tests/herramientas install --no-interaction --prefer-dist
       - run: composer --working-dir=tests/herramientas lint
       - if: always()
-        run: docker compose logs --no-color && docker compose down
+        run: |
+          docker compose logs --no-color
+          docker compose down
+          docker compose -f tests/compose.yaml down

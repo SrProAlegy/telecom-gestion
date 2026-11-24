@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 function botonEditar(string $formulario, array $registro, string $clave): void
 {
+    $recurso = ['form-cliente' => 'clientes', 'form-equipo' => 'equipos', 'form-seguimiento' => 'reparaciones',
+        'form-producto' => 'productos', 'form-categoria' => 'categorias', 'form-usuario' => 'usuarios',
+        'form-sucursal' => 'sucursales', 'form-tecnico' => 'tecnicos'][$formulario] ?? '';
+    if (!puede($recurso, true)) { return; }
+    if ($formulario === 'form-seguimiento' && in_array($registro['estado'], ['entregado','cancelado','no_reparable'], true)) { return; }
     echo '<button type="button" class="text-link plain-button" data-open="' . escapar($formulario)
         . '" data-record="' . escapar(json_encode($registro, JSON_UNESCAPED_UNICODE))
         . '" data-id-key="' . escapar($clave) . '">Editar</button>';
@@ -12,7 +17,7 @@ function botonEditar(string $formulario, array $registro, string $clave): void
 function mostrarFormularios(string $pagina, array $catalogos): void
 {
     $opciones = static function (array $filas, string $clave, callable $nombre): array {
-        return array_map(static fn (array $fila): array => [$fila[$clave], $nombre($fila)], $filas);
+        return array_map(static fn (array $fila): array => [$fila[$clave], $nombre($fila), null, $fila['activo'] ?? 1], $filas);
     };
     $sucursales = $opciones($catalogos['sucursales'], 'id_sucursal', static fn ($s) => $s['nombre']);
     $clientes = $opciones($catalogos['clientes'], 'id_cliente', static fn ($c) => $c['nombre']);
@@ -89,24 +94,35 @@ function mostrarFormularios(string $pagina, array $catalogos): void
         ],
     ];
     foreach ($forms[$pagina] ?? [] as [$id, $titulo, $endpoint, $campos]) {
+        if (!puede(basename($endpoint), $id === 'seguimiento')) { continue; }
+        if ($id === 'reparacion') {
+            foreach ($campos as &$campo) {
+                if ($campo[0] === 'sucursal_id') {
+                    $u = $GLOBALS['usuarioSesion'];
+                    $campo[4] = array_values(array_filter($sucursales, static fn ($s) => (int)$s[0] === (int)$u['sucursal_id']));
+                }
+            }
+            unset($campo);
+        }
         ?>
         <dialog class="form-dialog" id="form-<?= escapar($id) ?>" aria-labelledby="titulo-<?= escapar($id) ?>">
-            <form action="<?= escapar($endpoint) ?>" method="post" data-api-form data-entity="<?= escapar($titulo) ?>">
+            <form action="<?= escapar($endpoint) ?>" method="post" data-api-form data-rol="<?= escapar($GLOBALS['usuarioSesion']['rol']) ?>" data-entity="<?= escapar($titulo) ?>" <?= $id === 'seguimiento' ? 'data-transiciones="' . escapar(json_encode(\Telcom\Modelos\Operaciones::TRANSICIONES)) . '"' : '' ?>>
                 <header class="dialog-header"><div><p class="eyebrow">Telcom Gestión</p><h2 id="titulo-<?= escapar($id) ?>" data-dialog-title>Registrar <?= escapar($titulo) ?></h2></div><button type="button" class="dialog-close" data-close aria-label="Cerrar formulario">×</button></header>
-                <div class="dialog-body"><p class="required-note">Los campos con * son obligatorios.</p><div class="form-message" role="alert" hidden></div><input type="hidden" name="id" value="">
+                <div class="dialog-body"><p class="required-note">Los campos con * son obligatorios.</p><div class="form-message" role="alert" hidden></div><input type="hidden" name="id" value=""><?php if ($id === 'seguimiento') : ?><input type="hidden" name="revision" value="0"><?php endif; ?><?php if ($id === 'stock') : ?><input type="hidden" name="cantidad_anterior" value=""><?php endif; ?>
                 <div class="form-grid">
                 <?php foreach ($campos as [$name, $label, $type, $required, $extra]) : $fieldId = $id . '-' . ($name ?: 'cliente'); ?>
                     <div class="form-field <?= $type === 'textarea' ? 'span-2' : '' ?>"><label for="<?= escapar($fieldId) ?>"><?= escapar($label) ?><?= $required ? ' <span aria-hidden="true">*</span>' : '' ?></label>
                     <?php if (in_array($type, ['select', 'cliente-filtro'], true)) : ?>
                         <select id="<?= escapar($fieldId) ?>" <?= $name !== '' ? 'name="'.escapar($name).'"' : 'data-filter-client' ?> <?= $required ? 'required' : '' ?>>
                             <?php if ($name !== 'activo') : ?><option value=""><?= $name === 'tecnico_id' ? 'Por asignar' : 'Selecciona una opción' ?></option><?php endif; ?>
-                            <?php foreach ($extra as $opcion) : ?><option value="<?= escapar($opcion[0]) ?>" <?= isset($opcion[2]) ? 'data-cliente-id="'.(int)$opcion[2].'"' : '' ?>><?= escapar($opcion[1]) ?></option><?php endforeach; ?>
+                            <?php foreach ($extra as $opcion) : ?><option value="<?= escapar($opcion[0]) ?>" <?= isset($opcion[2]) ? 'data-cliente-id="'.(int)$opcion[2].'"' : '' ?> <?= isset($opcion[3]) && !$opcion[3] ? 'data-inactivo="1" disabled' : '' ?>><?= escapar($opcion[1]) ?><?= isset($opcion[3]) && !$opcion[3] ? ' (inactivo)' : '' ?></option><?php endforeach; ?>
                         </select>
                     <?php elseif ($type === 'textarea') : ?><textarea id="<?= escapar($fieldId) ?>" name="<?= escapar($name) ?>" rows="3" maxlength="<?= (int) $extra ?>" <?= $required ? 'required' : '' ?>></textarea>
                     <?php else : ?><input id="<?= escapar($fieldId) ?>" name="<?= escapar($name) ?>" type="<?= in_array($type, ['money','number'], true) ? 'number' : ($type === 'imei' ? 'text' : escapar($type)) ?>" <?= $required ? 'required' : '' ?>
                         <?php if (in_array($type, ['money','number'], true)) : ?>min="0" max="<?= escapar($extra) ?>" step="<?= $type === 'money' ? '0.01' : '1' ?>" value="<?= $name === 'stock_minimo' ? '0' : '' ?>"
-                        <?php else : ?>maxlength="<?= (int) $extra ?>" <?= $type === 'password' ? 'autocomplete="new-password"' : '' ?> <?= $type === 'imei' ? 'pattern="[0-9]{15}" inputmode="numeric" title="El IMEI contiene 15 dígitos."' : '' ?><?php endif; ?>>
+                        <?php else : ?>maxlength="<?= $type === 'password' ? 72 : (int) $extra ?>" <?= $type === 'password' ? 'minlength="4"' : '' ?> <?= $type === 'password' ? 'autocomplete="new-password"' : '' ?> <?= $type === 'imei' ? 'pattern="[0-9]{15}" inputmode="numeric" title="El IMEI contiene 15 dígitos."' : '' ?><?php endif; ?>>
                     <?php endif; ?>
+                    <?php if ($type === 'tel') : ?><small class="field-help">De 7 a 15 dígitos; admite formato internacional.</small><?php endif; ?>
                     <?php if ($type === 'password') : ?><small class="field-help" data-password-help hidden>Deja el campo vacío para conservar la contraseña.</small><?php endif; ?>
                     </div>
                 <?php endforeach; ?>

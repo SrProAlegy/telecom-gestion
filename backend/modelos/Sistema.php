@@ -8,6 +8,7 @@ use PDO;
 
 final class Sistema
 {
+    private int $offset = 0;
     public function __construct(private readonly PDO $db)
     {
     }
@@ -36,6 +37,7 @@ final class Sistema
 
     public function consultar(string $pagina, array $filtro): array
     {
+        $this->offset = (($filtro['pagina'] ?? 1) - 1) * 100;
         return match ($pagina) {
             'inicio' => $this->panel($filtro),
             'clientes' => $this->clientes($filtro),
@@ -77,6 +79,14 @@ final class Sistema
             "SELECT COUNT(*) FROM reparaciones r WHERE $where AND r.estado = 'listo_entrega'",
             $params
         );
+        if (!empty($f['solo_tecnico'])) {
+            $estados = $this->filas("SELECT r.estado, COUNT(*) AS cantidad FROM reparaciones r
+                WHERE $where GROUP BY r.estado", $params);
+            $conteos = array_column($estados, 'cantidad', 'estado');
+            return ['activas' => (int)$activas, 'listas' => (int)$listas,
+                'diagnostico' => (int)($conteos['diagnostico'] ?? 0),
+                'en_reparacion' => (int)($conteos['en_reparacion'] ?? 0)];
+        }
         [$salesWhere, $salesParams] = $this->sucursal('v', $f);
         $ventas = $this->valor(
             "SELECT COALESCE(SUM(v.total), 0) FROM ventas v WHERE $salesWhere AND v.fecha >= ? AND v.fecha < ?",
@@ -122,6 +132,12 @@ final class Sistema
     private function reparaciones(array $f): array
     {
         [$where, $params] = $this->sucursal('r', $f);
+        if (($f['tecnico'] ?? '') === 'sin_asignar') {
+            $where .= ' AND r.tecnico_id IS NULL';
+        } elseif (($f['tecnico'] ?? '') !== '') {
+            $where .= ' AND r.tecnico_id = ?';
+            $params[] = (int)$f['tecnico'];
+        }
         $counts = $this->filas("SELECT r.estado, COUNT(*) AS cantidad FROM reparaciones r WHERE $where
             GROUP BY r.estado", $params);
         if ($f['estado'] !== '') {
@@ -135,6 +151,8 @@ final class Sistema
                 e.marca, e.modelo, s.nombre AS sucursal,
                 t.nombre AS tecnico_nombre, t.apellido AS tecnico_apellido, r.problema_reportado,
                 r.diagnostico, r.observaciones, r.fecha_recepcion, r.fecha_entrega, r.estado,
+                (SELECT COALESCE(MAX(h.id_historial), 0) FROM historial_reparaciones h
+                    WHERE h.reparacion_id = r.id_reparacion) AS revision,
                 er.nombre AS estado_nombre
              FROM reparaciones r JOIN equipos e ON e.id_equipo = r.equipo_id
              JOIN clientes c ON c.id_cliente = e.cliente_id
@@ -191,7 +209,7 @@ final class Sistema
             "SELECT p.id_producto, p.nombre, p.precio,
                 COALESCE(SUM(i.cantidad), 0) AS cantidad
              FROM productos p LEFT JOIN inventario i ON i.producto_id = p.id_producto AND $stockWhere
-             WHERE p.activo = 1 GROUP BY p.id_producto, p.nombre, p.precio ORDER BY p.nombre LIMIT 100",
+             WHERE p.activo = 1 GROUP BY p.id_producto, p.nombre, p.precio ORDER BY p.nombre",
             $stockParams
         );
         return [
@@ -242,7 +260,7 @@ final class Sistema
                  JOIN productos p ON p.id_producto = i.producto_id
                  JOIN sucursales s ON s.id_sucursal = i.sucursal_id
                  WHERE $stockWhere AND p.activo = 1 AND i.cantidad < p.stock_minimo
-                 ORDER BY s.nombre, p.nombre LIMIT 100",
+                 ORDER BY s.nombre, p.nombre",
                 $stockParams
             ),
         ];
@@ -270,21 +288,22 @@ final class Sistema
 
     private function actividad(array $f): array
     {
+        [$repairWhere, $repairParams] = $this->sucursal('r', $f);
+        $historial = "SELECT 'reparacion' AS tipo, h.reparacion_id AS referencia, h.fecha,
+            sr.nombre AS sucursal, er.nombre AS descripcion, h.id_historial AS secuencia
+            FROM historial_reparaciones h JOIN reparaciones r ON r.id_reparacion = h.reparacion_id
+            JOIN sucursales sr ON sr.id_sucursal = r.sucursal_id
+            JOIN estados_reparacion er ON er.codigo = h.estado WHERE $repairWhere";
+        if (!empty($f['solo_tecnico'])) {
+            return $this->filas($historial . ' ORDER BY h.fecha DESC, h.id_historial DESC LIMIT 6', $repairParams);
+        }
         [$salesWhere, $salesParams] = $this->sucursal('v', $f);
-        [$repairWhere, $repairParams] = $this->sucursal('h', $f);
-        return $this->filas(
-            "SELECT * FROM (
-                SELECT 'venta' AS tipo, v.id_venta AS referencia, v.fecha, s.nombre AS sucursal,
-                    'Venta registrada' AS descripcion FROM ventas v
-                    JOIN sucursales s ON s.id_sucursal = v.sucursal_id WHERE $salesWhere
-                UNION ALL
-                SELECT 'reparacion' AS tipo, h.reparacion_id AS referencia, h.fecha, s.nombre AS sucursal,
-                    er.nombre AS descripcion FROM historial_reparaciones h
-                    JOIN sucursales s ON s.id_sucursal = h.sucursal_id
-                    JOIN estados_reparacion er ON er.codigo = h.estado WHERE $repairWhere
-             ) actividad ORDER BY fecha DESC, tipo, referencia DESC LIMIT 6",
-            [...$salesParams, ...$repairParams]
-        );
+        return $this->filas("SELECT * FROM (
+            SELECT 'venta' AS tipo, v.id_venta AS referencia, v.fecha, s.nombre AS sucursal,
+                'Venta registrada' AS descripcion, v.id_venta AS secuencia FROM ventas v
+                JOIN sucursales s ON s.id_sucursal = v.sucursal_id WHERE $salesWhere
+            UNION ALL $historial
+            ) actividad ORDER BY fecha DESC, tipo, secuencia DESC LIMIT 6", [...$salesParams, ...$repairParams]);
     }
 
     private function sucursal(string $alias, array $f): array
@@ -294,6 +313,7 @@ final class Sistema
 
     private function filas(string $sql, array $params = []): array
     {
+        $sql = str_replace('LIMIT 100', 'LIMIT 101 OFFSET ' . $this->offset, $sql);
         $statement = $this->db->prepare($sql);
         $statement->execute($params);
         return $statement->fetchAll();

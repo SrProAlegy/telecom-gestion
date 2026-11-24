@@ -10,12 +10,25 @@ $routes = [
     '/reparaciones' => [Telcom\Controladores\InicioController::class, 'reparaciones'],
     '/inventario' => [Telcom\Controladores\InicioController::class, 'inventario'],
     '/ventas' => [Telcom\Controladores\InicioController::class, 'ventas'],
+    '/reportes/exportar.csv' => [Telcom\Controladores\InicioController::class, 'exportar'],
     '/reportes' => [Telcom\Controladores\InicioController::class, 'reportes'],
     '/usuarios-sucursales' => [Telcom\Controladores\InicioController::class, 'usuarios'],
     '/acceso' => [Telcom\Controladores\InicioController::class, 'acceso'],
+    '/clientes-equipos/exportar.xlsx' => [Telcom\Controladores\InicioController::class, 'excelClientes'],
+    '/reparaciones/exportar.xlsx' => [Telcom\Controladores\InicioController::class, 'excelReparaciones'],
+    '/inventario/exportar.xlsx' => [Telcom\Controladores\InicioController::class, 'excelInventario'],
+    '/ventas/exportar.xlsx' => [Telcom\Controladores\InicioController::class, 'excelVentas'],
+    '/reportes/exportar.xlsx' => [Telcom\Controladores\InicioController::class, 'excelReportes'],
     '/health' => [Telcom\Controladores\InicioController::class, 'estado'],
 ];
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if (is_string($path) && str_starts_with($path, '/api/')) {
+    Telcom\Soporte\Sesion::iniciar();
+    (new Telcom\Controladores\ApiController())->atender($path, $requestMethod);
+    exit;
+}
+
 if (!is_string($path) || !isset($routes[$path])) {
     http_response_code(404);
     header('Content-Type: text/html; charset=utf-8');

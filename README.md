@@ -1,89 +1,135 @@
-# Telcom Gestión — base ejecutable
+# Telcom Gestión
 
-Aplicación web para la gestión de sucursales, clientes, equipos, reparaciones, inventario y ventas de Telcom. HTML5, CSS3, JavaScript y Bootstrap; PHP 8.4 por capas con PDO; MySQL 8.4; Apache; Git. Docker Compose sustituye exclusivamente a XAMPP.
+Sistema web de gestión multisucursal con HTML, CSS, JavaScript y Bootstrap local; PHP 8.4 por capas, PDO y MySQL 8.4. Docker Compose proporciona Apache, PHP, MySQL y phpMyAdmin para el desarrollo local.
 
-La aplicación presenta un panel, vistas de consulta y formularios de clientes, equipos, reparaciones, inventario, ventas, usuarios y sucursales. Las consultas leen registros existentes de MySQL. Los formularios incluyen validación e interacciones de navegador y preparan solicitudes JSON; el procesamiento de guardado, autenticación y permisos corresponde a la integración del backend. Las respuestas de éxito no se simulan. Las cuentas de MySQL son independientes de los usuarios de la aplicación.
+Incluye autenticación, permisos por rol y sucursal, administración de usuarios y catálogos, recepción y seguimiento de reparaciones, existencias, registro transaccional de ventas, consultas, exportaciones Excel, reportes CSV e impresión. Las cuentas de MySQL son independientes de las cuentas que inician sesión en el sistema.
 
-## Requisitos
+## Arranque
 
-Docker Desktop con contenedores Linux y Docker Compose v2 o posterior. Git para control de versiones. No hace falta instalar PHP, Apache o MySQL en el equipo. Node/Composer solo se necesitan para ejecutar los linters fuera de CI.
+Requiere Docker Desktop con contenedores Linux y Docker Compose v2. No requiere instalar XAMPP, PHP, MySQL, Node ni Composer en el equipo para utilizar la aplicación.
 
-## Ejecutar
-
-Para una instalación nueva, copia el ejemplo de configuración (si ya existe `.env`, consérvalo):
+Desde la carpeta del proyecto, conserva `.env` si ya existe. En una instalación nueva:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-En macOS/Linux: `cp .env.example .env`. Abre `.env` y reemplaza ambas contraseñas por claves largas, distintas y sin reutilizar. No publiques ese archivo. Para evitar expansión accidental de `$` en Compose, usa claves hexadecimales (por ejemplo 48 caracteres) o valores entre comillas simples. El ejemplo es una plantilla, no una clave segura.
+Configura las contraseñas de MySQL en `.env` y ejecuta:
 
 ```sh
 docker compose config --quiet
 docker compose up -d --build --wait --wait-timeout 240
 ```
 
-Abre [Telcom Gestión](http://localhost:8080). El panel muestra el estado de la conexión, indicadores reales y estados vacíos cuando no hay registros. El endpoint [de comprobación](http://localhost:8080/health) devuelve HTTP 200 y `{"status":"ok","database":"ready"}`; devuelve 503 si falla la conexión o la inicialización. El primer arranque descarga imágenes y puede tardar varios minutos.
+La aplicación está en http://localhost:8080 y el gestor de datos en http://localhost:8081. MySQL publica `127.0.0.1:3306`, base `telcom_gestion`, usuario `admin_telecom` y contraseña `DB_PASSWORD`. Root utiliza `DB_ROOT_PASSWORD`. `APP_PORT` permite cambiar el puerto web. Las credenciales y los archivos SQL existentes se conservan al actualizar el código.
 
-Si el puerto está ocupado, cambia `APP_PORT` en `.env` y ejecuta de nuevo `docker compose up -d`. MySQL publica `127.0.0.1:3306` para gestores locales; PHP lo alcanza mediante `db:3306`. Apache se publica en `127.0.0.1:8080` y phpMyAdmin en `127.0.0.1:8081`, para desarrollo local.
+## Primer administrador
 
-## Editar y entender el proyecto
-
-El código está montado desde esta carpeta: edita y recarga el navegador. No hay compilación frontend ni framework adicional. Los recursos Bootstrap están incluidos localmente, por lo que la página no necesita un CDN.
-
-```text
-frontend/
-  public/                 Único directorio expuesto por Apache
-    index.php             Entrada y rutas GET/HEAD
-    assets/css/           Estilos propios
-    assets/js/            JavaScript propio
-    assets/bootstrap/     Bootstrap y su licencia
-  vistas/                 Plantilla, vistas por módulo y funciones de presentación
-backend/
-  bootstrap.php           Carga de las clases utilizadas
-  config/database.php     Configuración y conexión PDO
-  controladores/          Solicitudes y respuestas
-  modelos/                Consultas a MySQL
-database/                 Esquema y catálogos iniciales
-docker/                   Configuración Apache/PHP y comprobación del contenedor
-tests/                    Pruebas de integridad, HTTP y recuperación
-  herramientas/           Configuración y dependencias de los linters
-docs/                     Alcance y evidencia de validación
-backups/                  Respaldos locales excluidos de Git
-.github/workflows/        Validación automática
-```
-
-El archivo `.env` lo interpreta Compose; PHP recibe las variables explícitas del servicio. El código no lee ni expone el archivo. PDO usa utf8mb4, excepciones, consultas preparadas nativas y una cuenta de aplicación distinta de root. Las credenciales root solo se entregan al contenedor MySQL. Los mensajes públicos no incluyen detalles SQL ni secretos. El enlace PDO va por la red local de Compose; no se ha configurado TLS hacia una base remota. La configuración corresponde a un entorno local HTTP; no incluye despliegue público con HTTPS ni control de acceso a los módulos.
-
-## Datos e inicialización
-
-`schema.sql` implementa las 11 entidades del ER y las extensiones documentadas en [docs/alcance-y-modelo.md](docs/alcance-y-modelo.md). `seed.sql` carga solo estados de reparación y la versión del esquema. Los scripts de inicialización no cargan sucursales, usuarios de la aplicación ni operaciones comerciales.
-
-Los scripts de `docker-entrypoint-initdb.d` se ejecutan **solo con un volumen vacío**. Editar SQL no actualiza una base existente; los cambios posteriores necesitan migraciones versionadas. Cambiar la contraseña en `.env` tampoco modifica los usuarios de un volumen ya creado: hay que coordinar el cambio con `ALTER USER` en MySQL.
-
-## Comprobar y detener
+La instalación no incluye cuentas ni contraseñas de aplicación predefinidas. Si todavía no hay usuarios, ejecuta este comando sustituyendo los datos por los tuyos:
 
 ```sh
-docker compose ps
-docker compose exec -T web php docker/php/healthcheck.php
-docker compose exec -T web php tests/integration.php
-docker compose exec -T web php tests/http.php
-docker compose logs --tail=100 web db
-docker compose down
+docker compose exec web php backend/crear-admin.php --correo="tu.correo@dominio.com" --nombre="Tu nombre" --apellido="Tu apellido" --sucursal="Nombre de tu sucursal"
 ```
 
-La prueba SQL crea datos temporales dentro de una transacción y hace rollback incluso ante error; puede avanzar contadores autoincrementales. Su alcance es la integridad del esquema; no evalúa procesos de negocio. Las pruebas de indisponibilidad y de restauración se describen en `docs/validacion.md`. `down` conserva los datos. **`docker compose down -v` elimina la base de este proyecto**: úsalo únicamente si deseas reinicializar una base descartable y ya tienes un respaldo. No es parte del arranque habitual.
+El comando pide la contraseña sin mostrarla en pantalla. Usa entre 4 y 72 bytes. Crea la sucursal si no existe una activa con ese nombre y registra al primer administrador dentro de una transacción. Se niega a ejecutarse cuando ya hay usuarios. No pases la contraseña como argumento del comando. `--password-stdin` está destinado a automatización que entregue la contraseña por entrada estándar.
 
-Linters opcionales (CI los ejecuta):
+Después inicia sesión por correo y contraseña en `/acceso`. Desde **Usuarios y sucursales** administra las sucursales, los técnicos y las cuentas adicionales. Técnicos y usuarios son entidades separadas del modelo; una cuenta con rol técnico no crea automáticamente un registro de técnico.
+
+## Operación
+
+1. Registra sucursales, usuarios y técnicos.
+2. Registra clientes y sus equipos.
+3. Recibe reparaciones en la sucursal de tu cuenta. Asigna técnico, registra diagnóstico y actualiza el estado. **Historial** muestra cada evento confirmado.
+4. Crea categorías y productos; consulta y ajusta las existencias por sucursal.
+5. Selecciona la sucursal de tu cuenta en **Ventas**, agrega productos y registra el pago. El servidor calcula el total, guarda el detalle y descuenta existencias en una sola transacción.
+6. Consulta los reportes por fechas y sucursal, imprime o descarga Excel/CSV.
+
+El administrador puede consultar todas las sucursales. Cada venta y recepción debe registrarse en la sucursal del operador, incluida una cuenta administradora: las claves foráneas del esquema exigen esa correspondencia. Para operar en otra sucursal utiliza una cuenta asignada a ella. Los usuarios con operaciones conservan su sucursal histórica.
+
+Los teléfonos opcionales admiten entre 7 y 15 dígitos con formato internacional. Cada equipo requiere al menos marca, modelo o IMEI. Los formularios rechazan espacios como único contenido de un campo obligatorio.
+
+Los listados principales se navegan en páginas de 100 registros. Los catálogos de selección y productos para venta no están limitados a la primera página. Las fechas de consulta se interpretan en America/Mexico_City y se convierten a UTC; la fecha final es inclusiva. El stock bajo corresponde al estado actual, no a existencias históricas del periodo.
+
+## Exportaciones Excel
+
+**Descargar Excel** está disponible en Clientes y equipos, Reparaciones, Inventario, Ventas y Reportes. Genera archivos `.xlsx` nativos, con hojas separadas para registros y detalle, encabezados inmovilizados, filtros de Excel, fechas locales y columnas numéricas. Una hoja Criterios identifica el alcance de la descarga. El archivo incluye todas las coincidencias, independientemente de la página del listado; respeta los mismos filtros y permisos del módulo. En reparaciones incluye el historial y las dos sucursales de cada evento.
+
+Las celdas de texto conservan teléfonos e IMEI sin convertirlos en números o fórmulas. La exportación usa una transacción de lectura para mantener una misma vista de los datos y genera primero un archivo temporal, que elimina al finalizar. El inventario representa las existencias actuales. Si una hoja supera 1,048,576 filas o una celda supera 32,767 caracteres, se solicita reducir el resultado en lugar de truncarlo.
+
+Docker instala la dependencia OpenSpout desde `backend/composer.lock` en `/opt/telcom/vendor`; no necesitas Composer en Windows. Los cambios de dependencias o extensiones requieren reconstruir la imagen. CSV e impresión continúan disponibles en reportes. La exportación es una consulta: no altera tablas ni sustituye un respaldo SQL.
+
+## Permisos
+
+| Operación | Administrador | Recepción | Técnico | Ventas |
+|---|---|---|---|---|
+| Panel y consulta de clientes/equipos | Sí | Sí | Sí | Sí |
+| Alta y edición de clientes/equipos | Sí | Sí | No | Sí |
+| Consulta de reparaciones | Sí | Sí | Sí | No |
+| Recepción de reparaciones | Sí | Sí | No | No |
+| Seguimiento técnico | Sí | Sí | Sí | No |
+| Entrega y cancelación | Sí | Sí | No | No |
+| Consulta de inventario y reportes | Sí | Sí | No | Sí |
+| Catálogos, existencias y administración | Sí | No | No | No |
+| Registro y consulta de ventas | Sí | No | No | Sí |
+
+El área técnica consulta y actualiza reparaciones de todas las sucursales, con filtros por sede, estado y técnico. Su panel muestra únicamente la operación de reparaciones. Recepción entrega y cancela únicamente reparaciones de su sucursal. El administrador conserva el control global del seguimiento. El historial distingue la sucursal receptora de la sucursal del responsable de cada evento. Los demás datos operativos se limitan a la sucursal de la cuenta, salvo las consultas del administrador. Clientes, equipos, categorías, productos y técnicos son catálogos compartidos. La sucursal de una cuenta no se deduce de filtros del navegador.
+
+## Estructura
+
+```text
+frontend/public/          Entrada HTTP y recursos públicos
+frontend/vistas/          Plantilla, pantallas y formularios PHP
+backend/controladores/    Rutas, autenticación HTTP y respuestas
+backend/modelos/          Consultas, autenticación y operaciones transaccionales
+backend/soporte/          Sesión, permisos, validación, Excel y errores de operación
+backend/composer.lock    Versiones de las dependencias del backend
+backend/config/           Conexión PDO por variables de entorno
+backend/crear-admin.php   Alta inicial, solo desde consola
+database/                Esquema y catálogo inicial
+docker/                  Configuración de PHP y Apache
+tests/                   Pruebas; compose.yaml usa una base aislada
+docs/                    Modelo, contrato de integración y validación
+backups/                 Respaldos locales excluidos de Git
+```
+
+Edita los archivos y recarga el navegador. No hay compilación frontend. Los cambios en PHP/Apache requieren reconstruir el servicio. Apache expone únicamente `frontend/public`. `.env`, respaldos y dependencias están excluidos de Git.
+
+## Sesión y consistencia
+
+Las contraseñas se guardan mediante `password_hash` y se comprueban con `password_verify`. Las sesiones regeneran su identificador al entrar y salir, caducan tras 30 minutos de inactividad u ocho horas y comprueban en cada solicitud que la cuenta y sucursal sigan activas. Cambiar una contraseña invalida las sesiones anteriores. Las escrituras, incluido el acceso y la salida, exigen un token CSRF. El acceso limita diez intentos fallidos por dirección IP en cinco minutos.
+
+PDO utiliza consultas preparadas nativas, utf8mb4 y UTC. Ventas e historial usan transacciones y bloqueos. No se aceptan precios, totales ni responsables del navegador como autoridad. Un conflicto revierte la operación completa. Las ventas incluyen una clave de operación para reconocer reenvíos de la misma solicitud dentro de la sesión; esta protección no es un registro persistente independiente del contenedor web. El seguimiento y el ajuste de existencias detectan formularios desactualizados. La aplicación conserva operaciones históricas y no ofrece borrado físico de registros.
+
+Las sesiones y el límite de intentos se almacenan en el contenedor web y se pierden al recrearlo. La configuración es local, con puertos limitados a este equipo; un despliegue público requiere HTTPS, configuración de infraestructura y una revisión de seguridad específica. No hay recuperación de contraseña por correo ni pasarela de pagos: el método de pago registra la forma de cobro de una venta.
+
+## Comprobaciones
+
+```sh
+docker compose exec -T web php tests/http.php
+docker compose exec -T web php docker/php/healthcheck.php
+docker compose -f tests/compose.yaml up --build --abort-on-container-exit --exit-code-from pruebas
+docker compose -f tests/compose.yaml down
+```
+
+La suite de backend utiliza **otro proyecto Compose**, sin puertos publicados, con MySQL temporal en memoria y sin el volumen comercial. Comprueba altas, ediciones, sesiones, CSRF, permisos, historial entre sucursales, Excel, reportes, paginación, rollback y ventas concurrentes con dos servidores. Las cuentas y operaciones que crea pertenecen exclusivamente a `telcom_pruebas`. Esa suite se niega a utilizar `telcom_gestion`.
+
+La prueba `tests/integration.php` revisa las restricciones SQL dentro de una transacción que revierte sus registros; puede avanzar contadores. Se ejecuta en CI sobre una base efímera. Las comprobaciones públicas no necesitan cuentas de aplicación. `/health` devuelve 200 cuando MySQL y el catálogo inicial están disponibles, o 503 si no lo están.
+
+Herramientas opcionales de revisión:
 
 ```sh
 composer --working-dir=tests/herramientas install
 composer --working-dir=tests/herramientas lint
 npm ci --prefix tests/herramientas
 npm run lint --prefix tests/herramientas
+npm test --prefix tests/herramientas
 ```
 
-PHP_CodeSniffer aplica PSR-12 al PHP de aplicación; ESLint valida el JavaScript propio. CI también levanta MySQL, comprueba sintaxis y ejecuta las pruebas. No se ha conectado un repositorio GitHub ni ejecutado el flujo remoto. Los resultados y límites de las comprobaciones están documentados en [docs/validacion.md](docs/validacion.md).
+## Datos y mantenimiento
+
+`schema.sql` y `seed.sql` se ejecutan únicamente al inicializar un volumen vacío. Actualizar el código no recrea tablas ni modifica datos existentes. Cambiar las contraseñas de `.env` no actualiza las cuentas de un volumen ya creado: debe coordinarse también el cambio en MySQL.
+
+`docker compose down` detiene el entorno y conserva la base. No uses `down -v` sobre datos que quieras conservar.
 
 ## Respaldo y restauración local
 
@@ -104,46 +150,16 @@ docker compose exec -T web php docker/php/healthcheck.php
 
 Restaurar reemplaza tablas/datos según el archivo; comprueba el destino y detén operaciones durante la restauración. Antes de usar respaldos en producción, prueba periódicamente la recuperación en un proyecto/volumen independiente. Las pruebas de integridad utilizan registros temporales y revierten sus cambios al terminar.
 
-## Control de versiones y alcance
 
-El proyecto cuenta con un repositorio Git local. `.gitignore` excluye `.env`, respaldos y dependencias. El flujo de validación está definido en `.github/workflows/validate.yml`.
+## Documentación
 
-Para una copia sin repositorio, `git init -b main` inicializa Git. La identidad de los commits se configura con el nombre y correo del autor.
+- [Alcance y modelo](docs/alcance-y-modelo.md)
+- [Contrato de integración](docs/integracion-frontend.md)
+- [Validación](docs/validacion.md)
+- [Recorrido funcional y hallazgos](docs/revision-funcional.md)
 
-La correspondencia con RF01–RF17 y RNF01–RNF09, las restricciones del modelo y las funciones no disponibles se describen en [docs/alcance-y-modelo.md](docs/alcance-y-modelo.md).
+El repositorio mantiene el flujo de comprobaciones en `.github/workflows/validate.yml`. Las imágenes de identidad visual son las proporcionadas en `frontend/public/assets`.
 
-Referencias técnicas: [Compose y disponibilidad de dependencias](https://docs.docker.com/compose/how-tos/startup-order/), [PDO MySQL](https://www.php.net/manual/en/ref.pdo-mysql.php), [Bootstrap 5.3](https://getbootstrap.com/docs/5.3/getting-started/introduction/).
+## Versión y distribución
 
-## Gestor visual de la base de datos
-
-Abre [phpMyAdmin](http://localhost:8081) e inicia sesión con el usuario `admin_telecom` y el valor de `DB_PASSWORD` en `.env`. Selecciona `telcom_gestion` para consultar las tablas, su estructura y los registros. El gestor se conecta al servicio `db` dentro de Docker y no guarda las contraseñas en su configuración.
-
-También puedes usar un gestor de escritorio: host `127.0.0.1`, puerto `3306`, base `telcom_gestion`, usuario `admin_telecom` y contraseña `DB_PASSWORD` de `.env`. Para administración, la cuenta `root` utiliza `DB_ROOT_PASSWORD`. Los puertos de MySQL y phpMyAdmin están limitados al equipo local.
-
-El usuario inicial de Compose es `admin_telecom`. Cambiar `MYSQL_USER` o las contraseñas de `.env` no renombra ni actualiza cuentas en un volumen ya inicializado: se debe cambiar también la cuenta dentro de MySQL y después recrear los servicios con la configuración coincidente.
-
-Referencia de configuración del gestor: [imagen oficial de phpMyAdmin](https://hub.docker.com/_/phpmyadmin).
-La estructura separa la presentación en `frontend` y el acceso a datos/controladores en `backend`. La copia local de configuración previa está conservada en `backups/.env.before-connection-fix`.
-
-
-## Consultas disponibles
-
-| Ruta | Información |
-|---|---|
-| `/` | Indicadores del día, reparaciones recientes y actividad registrada |
-| `/clientes-equipos` | Catálogo compartido de clientes y equipos, con búsqueda |
-| `/reparaciones` | Registros por sucursal y estado, con diagnóstico y observaciones consultables |
-| `/inventario` | Catálogo y existencias por sucursal; “—” indica ausencia de registro de inventario |
-| `/ventas` | Catálogo e importes registrados en el periodo seleccionado |
-| `/reportes` | Resúmenes de ventas y reparaciones por periodo; stock bajo actual |
-| `/usuarios-sucursales` | Usuarios y sucursales de aplicación, sin exponer hashes |
-| `/acceso` | Formulario de acceso por correo y contraseña |
-
-Los filtros de sucursal utilizan establecimientos existentes. Los estados proceden de `estados_reparacion`. Las fechas de ventas y reportes se interpretan en America/Mexico_City y se convierten a UTC para consultar MySQL. La fecha final es inclusiva en la interfaz. El panel calcula las ventas del día local. Los listados muestran hasta 100 registros; los indicadores se calculan sobre todo el ámbito consultado. La actividad reciente procede de ventas e historial de reparaciones; no representa una auditoría general de inventario.
-
-El stock bajo cuenta productos activos con alguna existencia inferior a `productos.stock_minimo` dentro del ámbito seleccionado. El backend actual no aplica autenticación a las rutas de consulta. No hay usuarios conectados, sucursales ficticias ni datos de demostración. Los registros que se muestren corresponden a la base existente. El diseño utiliza un estilo compartido, Bootstrap local, iconos SVG y JavaScript externo compatible con la política de seguridad del servidor.
-
-
-## Formularios e integración
-
-Los formularios y el carrito están preparados para el contrato JSON descrito en [docs/integracion-frontend.md](docs/integracion-frontend.md). Las rutas `/api/*` de escritura no están implementadas: una solicitud sin confirmación del servidor muestra un error y no anuncia un guardado. Las lecturas existentes continúan funcionando. La interfaz contiene formularios de alta y edición, selección de equipos por cliente, captura de existencias, selección de productos y cantidades, visualización de contraseña e impresión de reportes.
+La versión local `v0.2.0` identifica el backend operativo, el área técnica entre sucursales y las exportaciones Excel. La etiqueta de Git permite recuperar esa versión del código. El paquete de distribución contiene los archivos editables, SQL, configuración y documentación; excluye credenciales, datos locales, respaldos y dependencias instaladas. En otra ubicación o equipo, sigue las instrucciones de Arranque y Primer administrador. La base existente se mantiene en su volumen de Docker y no forma parte del paquete de código.

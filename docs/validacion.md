@@ -1,85 +1,71 @@
-# Validación de la base ejecutable
+# Validación
 
-Pruebas realizadas localmente con Docker Desktop, contenedores Linux, PHP 8.4 y MySQL 8.4. Cubren el entorno, el esquema y las respuestas de la página de estado. No evalúan procesos de negocio.
+## Backend y procesos de negocio
 
-## Arranque real
+La suite `tests/backend.php` se ejecutó con `tests/compose.yaml`, PHP 8.4, MySQL 8.4 y dos servidores HTTP para comprobar concurrencia. Finalizó con **341 comprobaciones correctas**. El proyecto de pruebas utiliza `telcom_pruebas`, almacenamiento temporal de MySQL y ninguna publicación de puertos. No utiliza el volumen de `telcom_gestion`.
 
-`docker compose config --quiet` y `docker compose up -d --build --wait --wait-timeout 240` finalizaron correctamente. Los servicios web y db quedaron healthy; phpMyAdmin quedó en ejecución. Los scripts SQL se ejecutaron sobre un volumen nuevo. La comprobación atraviesa Apache → entrada PHP → controlador → modelo → PDO → MySQL, y exige versión de esquema 1 y los ocho estados iniciales.
+Se comprobaron alta inicial única del administrador; acceso válido e inválido; regeneración de sesión; CSRF en acceso y escrituras; cierre; revocación al desactivar cuenta; límite de intentos; permisos por rol y sucursal; altas y ediciones de catálogos; validación de formatos, correo, texto e IMEI; duplicados; historial y fecha de entrega; transiciones y cierre de reparaciones; conservación de sucursal histórica; protección del administrador; consulta de partidas; cálculo decimal; rollback al fallar una partida; conflicto de existencias; protección de seguimiento desactualizado; exportación CSV; escape HTML y paginación.
 
-## Integridad SQL
+Dos sesiones en servidores distintos solicitaron simultáneamente las dos últimas unidades de un producto: una venta confirmó con HTTP 201 y la otra se rechazó con 409. Se verificó una sola venta, total 0.58 calculado con precio 0.29 y stock final cero.
 
-`docker compose exec -T web php tests/integration.php`: 11 comprobaciones correctas. Verifica varias reparaciones por equipo, varios eventos de historial, inventario único por producto/sucursal, rechazo de stock negativo, existencias independientes por sede, correspondencia entre operador y sucursal, cálculo decimal de subtotal, rechazo de cantidad cero, estados válidos, claves foráneas y catálogo inicial. Los datos temporales fueron revertidos. No evalúa el registro de ventas ni el descuento de inventario desde la aplicación.
-
-## Respuestas HTTP y archivos privados
-
-`docker compose exec -T web php tests/http.php`: 31 casos HTTP correctos y una comprobación de escape HTML. Incluyen las ocho vistas, el endpoint de estado, recursos locales, validación de filtros, métodos no permitidos y bloqueo de acceso a archivos privados.
-
-## Indisponibilidad y recuperación
-
-Se detuvo únicamente el servicio db de este proyecto, se ejecutó `tests/unavailable.php` y se recuperó con `docker compose up -d --wait --wait-timeout 120`. Se recibió HTTP 503 con JSON genérico, sin mensajes SQL ni credenciales. Después, web y db recuperaron su estado healthy sin recrear el volumen.
-
-Para repetir exclusivamente en desarrollo:
-
-```powershell
-try {
-    docker compose stop db
-    docker compose exec -T web php tests/unavailable.php
-    if ($LASTEXITCODE -ne 0) { throw 'Falló prueba de indisponibilidad' }
-} finally {
-    docker compose up -d --wait --wait-timeout 120
-}
-```
-
-El DNS interno de Docker puede demorar cuando el servicio está detenido. La prueba negativa permite 30 segundos. Los formularios limitan sus solicitudes a 15 segundos y conservan los datos capturados cuando ocurre un error.
-
-## Respaldo y restauración
-
-`tests/backup-roundtrip.sh` exportó mediante mysqldump y restauró en una base temporal independiente dentro del contenedor. Verificó 14 tablas, ocho estados y versión 1; eliminó solo esa base temporal al salir. El esquema original permaneció disponible. Para repetir:
+Para repetir:
 
 ```sh
-docker compose cp tests/backup-roundtrip.sh db:/tmp/telcom-backup-check.sh
-docker compose exec -T db sh /tmp/telcom-backup-check.sh
+docker compose -f tests/compose.yaml up --build --abort-on-container-exit --exit-code-from pruebas
+docker compose -f tests/compose.yaml down
 ```
 
-Esta prueba cubre la estructura y los catálogos iniciales; no acredita recuperación de operaciones comerciales. El README contiene los comandos para guardar un respaldo fuera del contenedor.
+## Comprobaciones públicas y código
 
-## Revisión del código
+`tests/http.php` comprueba que las páginas privadas redirijan al acceso, que los archivos internos no sean accesibles y que health y recursos públicos respondan. Las consultas autenticadas y los errores de filtros se comprueban en la suite aislada. `tests/frontend.mjs` revisa importes en centavos, límites de precisión y la conversión de formularios a JSON.
 
-- Los 20 archivos PHP pasaron `php -l`.
-- PHP_CodeSniffer 3.13.6 pasó sin errores ni advertencias con el estándar del proyecto.
-- ESLint 10.15.0 pasó para el JavaScript propio con Node 22.
-- Composer y npm tienen archivos lock incluidos. Las herramientas de revisión son dependencias de desarrollo, no requisitos para arrancar la aplicación.
-- Git confirmó que `.env`, dependencias y respaldos están excluidos. Las dependencias se instalan mediante los archivos lock de Composer y npm.
+Las revisiones de código utilizan sintaxis PHP, PHP_CodeSniffer y ESLint. `.github/workflows/validate.yml` incluye las pruebas públicas, integridad SQL, pruebas de backend aisladas y linters. La configuración del flujo no acredita una ejecución en GitHub.
 
-## Interfaz
+## Conservación del esquema
 
-Se revisaron las vistas de consulta en navegador. La interfaz utiliza la identidad visual de Telcom, iconos SVG, Bootstrap local y un estilo compartido. Los indicadores y listados proceden de MySQL y presentan estados vacíos sin registros de demostración. La captura `pantalla-inicial.jpg` registra el panel. La interfaz presenta formularios de captura y acceso, con envío JSON y manejo de errores; no simula persistencia ni autenticación.
+Los archivos SQL mantienen sus hashes previos a la implementación:
 
-## Límites de la validación
+- schema.sql: E51CB4D4B353AFEB7F54ABB5A09CE768BF502D618808D31F6A8296E947A7FA4A
+- seed.sql: 3701CFE25DC30ECF95DABBB599ECC32154D2724256B731493A6EEFBD95B2C51E
 
-No se ejecutó GitHub Actions en un remoto, ni una auditoría de producción, prueba de carga o validador formal HTML/CSS. No hay usuarios, sucursales comerciales ni operaciones precargadas. Las pruebas no acreditan el cumplimiento completo de los 17 RF. El entorno validado es local; no incluye validación de despliegue público ni de operación comercial.
+Las operaciones de negocio de esta revisión se probaron en la base aislada. No se cargaron cuentas ni operaciones de prueba en la base comercial.
 
-## Reorganización frontend/backend
+## Comprobaciones de infraestructura existentes
 
-Se reorganizó el código activo en `frontend/public`, `frontend/vistas`, `backend/config`, `backend/controladores` y `backend/modelos`. Se concentró la comprobación de disponibilidad en el controlador y el modelo, sin una capa de servicios para esta operación sencilla. `backend/bootstrap.php` carga las clases utilizadas; las rutas están declaradas en `frontend/public/index.php`.
+`tests/integration.php` comprueba restricciones y relaciones SQL dentro de una transacción con rollback. `tests/unavailable.php` verifica la respuesta de health ante MySQL detenido. `tests/backup-roundtrip.sh` exporta y restaura sobre una base temporal separada dentro del contenedor. Sus ejecuciones previas constan en el historial del repositorio; no son pruebas de recuperación comercial ni auditorías de producción.
 
-Se movieron Composer, npm, ESLint y PHP_CodeSniffer a `tests/herramientas`. El archivo local de configuración previa se conservó dentro de `backups`. Apache expone únicamente `frontend/public` y la comprobación del contenedor reside en `docker/php/healthcheck.php`.
+## Límites
 
-Verificación posterior: reconstrucción Docker correcta; diez archivos PHP sin errores de sintaxis; 11 comprobaciones de integridad SQL y diez casos HTTP correctos; ESLint y PHP_CodeSniffer correctos desde sus nuevas ubicaciones; respuesta 503 ante una caída de MySQL y recuperación de los servicios. Las rutas directas a backend, vistas, herramientas y SQL devuelven 404. Git sigue excluyendo `.env`, la copia de configuración y las dependencias.
+La suite automatizada no sustituye pruebas de aceptación con datos de negocio. La concurrencia comprobada cubre dos ventas competidoras; no acredita capacidad de carga. No se ejecutó auditoría de seguridad de producción, despliegue público ni validación de una pasarela de pagos. Las imágenes de identidad visual son las proporcionadas por el usuario.
 
-La base y sus credenciales permanecieron disponibles. La reorganización conservó el alcance funcional. El flujo de GitHub Actions utiliza las rutas actuales; no hay una ejecución remota registrada.
+## Revisión en navegador
 
-## Interfaz de consulta con la identidad visual de Telcom
+En un servicio temporal conectado exclusivamente a telcom_pruebas se verificaron acceso y salida, alta y edición de cliente, ajuste de existencias, seguimiento con historial y venta desde el carrito. Se observó confirmación de persistencia y actualización de los listados. El servicio temporal y su base se cerraron al terminar. La captura acceso-backend.jpg corresponde al acceso habitual con las imágenes proporcionadas.
 
-Las ocho vistas consultan el esquema existente mediante PDO. Los filtros de estado utilizan el catálogo de ocho estados de reparación y los de sucursal utilizan establecimientos registrados. Usuarios muestra correo, nombre, apellido y rol; no muestra hashes ni presupone nombres de usuario. El resumen de actividad utiliza ventas e historial de reparaciones.
+La consulta final de la base habitual confirmó cero registros comerciales y ocho estados iniciales. Los datos creados por las pruebas no se cargaron allí.
 
-Las pruebas HTTP comprueban rutas válidas, filtros inválidos, fechas inexistentes o invertidas, parámetros con formato incorrecto, rechazo de solicitudes POST y escape de texto en búsquedas. La revisión de consultas se realizó sobre la base existente, sin insertar datos de prueba. La base comercial estaba vacía, por lo que esta comprobación valida ejecución y estados vacíos; no acredita todos los escenarios con registros ni el aislamiento por permisos.
+## Revisión funcional y regresiones
 
-Los formularios de registro y acceso están disponibles; sus endpoints de escritura y autenticación aún no están implementados. No se modificó el esquema, sus campos ni los catálogos. El contraste de hashes de `database/schema.sql` y `database/seed.sql` conserva los valores anteriores a la integración visual. Las consultas de la aplicación utilizan exclusivamente SELECT; no se ejecutaron pruebas SQL que inserten registros durante esta integración.
+El recorrido posterior con la cuenta administradora configurada comprobó las siete secciones y el inicio/cierre de sesión en el entorno habitual. Las capturas completas se realizaron en una base aislada, utilizando una copia temporal de la cuenta. Se mantuvieron sin operaciones los clientes, equipos, reparaciones, inventario y ventas de la base habitual; permanecieron su sucursal y usuario iniciales.
 
+Se corrigió el envío de cantidades escritas en el carrito: dos unidades a 150.50 registraron 301.00, dos unidades en detalle y el descuento exacto. Se comprobó el rechazo de cantidad vacía y stock negativo; recepción, diagnóstico, reparación, disponibilidad y entrega con cinco eventos de historial; cierre sin edición posterior; categoría y producto; consulta global de ventas sin captura fuera de la sucursal; descarga CSV; fechas invertidas; menú móvil y cierre con Escape.
 
-## Preparación de formularios
+La prueba de frontend incluye una regresión con eventos de escritura que verifica el total y el JSON de venta, además de espacios, teléfonos, importes y contraseña simple. Las 341 comprobaciones del backend incluyen reenvío de ventas sin nuevos registros, rechazo de reutilización de clave con contenido diferente y desactivación de cuentas en sucursales inactivas. El detalle y los límites están en revision-funcional.md.
 
-La revisión del frontend incluye presentación sin avisos de desarrollo, diálogos de alta y edición, campos alineados al esquema, opciones reales de catálogos, relaciones cliente/equipo, carrito, impresión, navegación y manejo de errores. Los contratos y límites de integración se describen en integracion-frontend.md. Las pruebas de consultas no acreditan persistencia ni autenticación; los controladores de escritura no forman parte de esta revisión.
+## Operación central y Excel
 
-Las pruebas de `tests/frontend.mjs` verifican importes en centavos, límites de precisión y conversión de formularios a JSON, incluyendo identificadores, campos opcionales e IMEI con ceros iniciales. La revisión HTML comprobó 12 formularios de integración, identificadores únicos y correspondencia entre etiquetas y campos.
+La revisión de cierre comprobó recepción en C, seguimiento por una cuenta técnica en B, consulta desde A/B/C y entrega por recepción C. Se verificaron la conservación de la sucursal y receptor originales, seis eventos con sucursal del operador y receptora, restricción de entrega/cancelación para técnicos, conflictos de edición y exclusión de ventas/inventario del panel técnico.
+
+Los libros XLSX se descargaron por HTTP autenticado y se reabrieron con un lector de Excel; se comprobaron integridad ZIP, XML, nombres de hojas, filtros, encabezados inmovilizados, ausencia de fórmulas, texto literal, IMEI con ceros iniciales, fechas reales con hora local, importes numéricos y coincidencia entre ventas y partidas. Una búsqueda de 101 clientes se exportó completa desde la página 2. Se comprobaron resultados vacíos, filtros inválidos y rechazo de accesos fuera del rol/sucursal.
+
+En navegador se registró otra reparación desde recepción C, se atendió desde técnico B hasta lista para entrega y se entregó en C. La reparación cerrada conservó el historial y dejó de ofrecer edición. Se descargó el libro de reparaciones mediante el botón de la pantalla. La captura `entrega-multisucursal.jpg` corresponde exclusivamente a la base aislada.
+
+## Instalación desde una copia limpia
+
+Se generó una copia del proyecto sin `.env`, `.git`, respaldos ni dependencias locales. Se creó un `.env` independiente y se construyó la imagen desde esa copia con el proyecto Compose `telcom-gestion-instalacion`, su propio volumen de MySQL y el puerto web 8083. Los puertos de MySQL y phpMyAdmin de esa copia no se publicaron. La base y los servicios habituales permanecieron separados.
+
+La instalación completó los healthchecks, 37 casos HTTP públicos, 11 comprobaciones de relaciones y restricciones SQL con rollback y el alta inicial por consola. Se inició sesión y se comprobaron las siete secciones y los cinco tipos de libro XLSX, incluyendo libros sin registros comerciales. El respaldo se restauró en una base temporal con 14 tablas, ocho estados y versión de esquema 1. Al detener MySQL se obtuvo health 503 genérico; después de arrancarlo nuevamente se recuperó health 200.
+
+También finalizaron sin errores la revisión de sintaxis PHP, PHP_CodeSniffer, ESLint y las regresiones JavaScript. Composer validó las dependencias de ejecución y no reportó avisos de vulnerabilidades en la revisión realizada. La suite final aislada terminó con 341 comprobaciones. Estos resultados corresponden a ejecuciones locales; no se publicó ni ejecutó esta versión en GitHub Actions.
+
+Al cierre, la base habitual conserva una sucursal y una cuenta, ocho estados iniciales y cero registros en clientes, equipos, técnicos, categorías, productos, inventario, reparaciones, historial, ventas y partidas. Los hashes de esquema y catálogo inicial coinciden con los indicados arriba. No se cambiaron las credenciales configuradas.

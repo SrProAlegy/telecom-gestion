@@ -1,4 +1,5 @@
-<div class="report-actions"><button type="button" class="btn btn-light" data-print>Imprimir reporte</button></div>
+<div class="report-actions"><a class="btn btn-light" href="/reportes/exportar.csv?<?= escapar(http_build_query(array_filter(['sucursal' => $filtro['sucursal'], 'desde' => $filtro['desde'], 'hasta' => $filtro['hasta']], static fn ($v) => $v !== null))) ?>">Descargar CSV</a>
+<button type="button" class="btn btn-light" data-print>Imprimir reporte</button></div>
 <section class="stats-grid three-cols">
 <article class="stat-card"><span class="stat-icon blue"><?= icono('ventas') ?></span><div><p>Ventas registradas</p><strong><?= moneda($datos['resumen']['ventas']) ?></strong><small>Periodo seleccionado</small></div></article>
 <article class="stat-card"><span class="stat-icon cyan"><?= icono('reparaciones') ?></span><div><p>Reparaciones recibidas</p><strong><?= (int) $datos['recibidas'] ?></strong><small>Periodo seleccionado</small></div></article>
